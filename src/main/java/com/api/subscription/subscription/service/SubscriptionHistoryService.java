@@ -1,9 +1,7 @@
 package com.api.subscription.subscription.service;
 
-import com.api.subscription.common.exception.BusinessException;
-import com.api.subscription.common.exception.ErrorCode;
 import com.api.subscription.member.domain.Member;
-import com.api.subscription.member.repository.MemberRepository;
+import com.api.subscription.member.service.MemberService;
 import com.api.subscription.subscription.domain.SubscriptionHistory;
 import com.api.subscription.subscription.dto.HistoryResponse;
 import com.api.subscription.subscription.repository.SubscriptionHistoryRepository;
@@ -21,15 +19,14 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SubscriptionHistoryService {
 
-    private final MemberRepository memberRepository;
+    private final MemberService memberService;
     private final SubscriptionHistoryRepository subscriptionHistoryRepository;
     private final ChatClient chatClient;
 
     // 구독 기록 가져오기
     @Transactional(readOnly = true)
     public HistoryResponse getHistory(String phoneNumber) {
-        Member member = memberRepository.findByPhoneNumber(phoneNumber)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
+        Member member = memberService.findMemberByPhoneNumber(phoneNumber);
 
         List<SubscriptionHistory> histories = subscriptionHistoryRepository
                 .findByMemberWithChannel(member);

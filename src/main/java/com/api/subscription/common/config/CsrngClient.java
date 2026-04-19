@@ -6,12 +6,16 @@ import com.api.subscription.common.properties.CsrngProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.time.Duration;
 import java.util.List;
+
+import static java.net.http.HttpClient.*;
 
 @Slf4j
 @Component
@@ -21,27 +25,32 @@ public class CsrngClient {
     private final RestClient restClient;
 
     public CsrngClient(CsrngProperties properties) {
+        var httpClient = newBuilder()
+                .connectTimeout(Duration.ofMillis(properties.timeout().connect()))
+                .build();
+
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
+        factory.setReadTimeout(Duration.ofMillis(properties.timeout().read()));
         this.restClient = RestClient.builder()
                 .baseUrl(properties.url())
                 .build();
     }
 
     @Retryable(includes = RestClientException.class, maxRetries = 3, delay = 1000)
-    public boolean isRollback() {
-        log.info("csrng API 호출");
+    public boolean canProceed() {
+        log.info("구독 가능 여부 확인을 위한 외부 API 호출");
+
         List<CsrngResponse> responses = restClient.get()
                 .uri("?min=0&max=1")
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
 
         if (responses == null || responses.isEmpty()) {
-            log.warn("csrng API 응답이 비어있습니다.");
             throw new BusinessException(ErrorCode.EXTERNAL_API_FAILURE);
         }
 
-        int random = responses.get(0).random();
-        log.info("csrng random 값: {}", random);
-        return random == 0;
+        int randomValue = responses.getFirst().random();
+        return randomValue == 0;
     }
 
     public record CsrngResponse(
